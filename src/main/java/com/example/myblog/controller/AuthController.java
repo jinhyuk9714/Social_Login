@@ -2,6 +2,7 @@ package com.example.myblog.controller;
 
 import com.example.myblog.dto.LoginRequest;
 import com.example.myblog.dto.SignupRequest;
+import com.example.myblog.dto.TokenResponse;
 import com.example.myblog.service.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,9 +25,16 @@ public class AuthController {
 
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        String token = authService.login(request);
-        return ResponseEntity.ok(Map.of("token", token));
+    public ResponseEntity<TokenResponse> login(@RequestBody LoginRequest request) {
+        TokenResponse tokenResponse = authService.login(request);
+        return ResponseEntity.ok(tokenResponse);
+    }
+
+
+    @PostMapping("/refresh")
+    public ResponseEntity<Map<String, String>> refresh(@RequestBody Map<String, String> request) {
+        String newAccessToken = authService.refreshToken(request.get("refreshToken"));
+        return ResponseEntity.ok(Map.of("accessToken", newAccessToken));
     }
 
 

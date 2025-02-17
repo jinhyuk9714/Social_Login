@@ -1,14 +1,11 @@
 package com.example.myblog.service;
 
-import com.example.myblog.dto.SignupRequest;
 import com.example.myblog.dto.LoginRequest;
+import com.example.myblog.dto.SignupRequest;
+import com.example.myblog.dto.TokenResponse;
 import com.example.myblog.entity.User;
 import com.example.myblog.repository.UserRepository;
 import com.example.myblog.config.JwtUtil;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,22 +16,22 @@ import java.util.HashSet;
 
 @Service
 public class AuthService {
-    private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
     @Autowired
-    public AuthService(AuthenticationManager authenticationManager, UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
-        this.authenticationManager = authenticationManager;
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
     }
 
+    /**
+     * 회원가입 메서드
+     */
     public String signup(SignupRequest signupRequest) {
-        Optional<User> existingUser = userRepository.findByUsername(signupRequest.getUsername());
-        if (existingUser.isPresent()) {
+        if (userRepository.existsByUsername(signupRequest.getUsername())) {
             throw new RuntimeException("이미 존재하는 사용자명입니다.");
         }
 
@@ -43,7 +40,7 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(signupRequest.getPassword())); // 비밀번호 암호화
         user.setEmail(signupRequest.getEmail());
 
-        // ✅ 사용자가 roles를 보내지 않았으면 "ROLE_USER" 기본값 설정
+        // 기본 역할 설정 (ROLE_USER)
         Set<String> roles = signupRequest.getRoles() != null ? new HashSet<>(signupRequest.getRoles()) : new HashSet<>();
         if (roles.isEmpty()) {
             roles.add("ROLE_USER");
@@ -54,19 +51,35 @@ public class AuthService {
         return "회원가입 성공!";
     }
 
-    public String login(LoginRequest loginRequest) {
-        try {
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword())
-            );
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+    /**
+     * 로그인 메서드
+     */
+    public TokenResponse login(LoginRequest loginRequest) {
+        User user = userRepository.findByUsername(loginRequest.getUsername())
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
-            User user = userRepository.findByUsername(loginRequest.getUsername())
-                    .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
-
-            return jwtUtil.generateToken(user.getUsername(), user.getRoles());
-        } catch (Exception e) {
-            throw new RuntimeException("로그인 실패: 아이디 또는 비밀번호를 확인하세요.");
+        if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
+            throw new RuntimeException("비밀번호가 일치하지 않습니다.");
         }
+
+        String accessToken = jwtUtil.generateAccessToken(user.getUsername(), user.getRoles());
+        String refreshToken = jwtUtil.generateRefreshToken(user.getUsername());
+
+        return new TokenResponse(accessToken, refreshToken);
+    }
+
+    /**
+     * 리프레시 토큰으로 새로운 액세스 토큰 발급
+     */
+    public String refreshToken(String refreshToken) {
+        if (!jwtUtil.validateToken(refreshToken)) {
+            throw new RuntimeException("리프레시 토큰이 유효하지 않습니다.");
+        }
+
+        String username = jwtUtil.extractUsername(refreshToken);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        return jwtUtil.generateAccessToken(user.getUsername(), user.getRoles());
     }
 }

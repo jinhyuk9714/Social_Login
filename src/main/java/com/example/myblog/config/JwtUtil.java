@@ -4,6 +4,7 @@ import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Component;
 import java.security.Key;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -11,23 +12,35 @@ import java.util.stream.Collectors;
 public class JwtUtil {
 
     private final String SECRET_KEY = EnvConfig.get("JWT_SECRET_KEY");
-    private final long EXPIRATION_TIME = Long.parseLong(EnvConfig.get("JWT_EXPIRATION_TIME"));
+    private final long ACCESS_TOKEN_EXPIRATION = 15 * 60 * 1000; // 15분
+    private final long REFRESH_TOKEN_EXPIRATION = 7 * 24 * 60 * 60 * 1000; // 7일
 
     private Key getSigningKey() {
         return Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
     }
 
-    // ✅ JWT 생성 시 roles를 List<String>으로 변환하여 저장
-    public String generateToken(String username, Set<String> roles) {
+    // ✅ Access Token 생성
+    public String generateAccessToken(String username, Set<String> roles) {
         return Jwts.builder()
                 .setSubject(username)
-                .claim("roles", new ArrayList<>(roles)) // ✅ List<String>으로 변환
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .claim("roles", roles)
+                .setIssuedAt(Date.from(Instant.now()))
+                .setExpiration(Date.from(Instant.now().plusMillis(ACCESS_TOKEN_EXPIRATION)))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
+    // ✅ Refresh Token 생성
+    public String generateRefreshToken(String username) {
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(Date.from(Instant.now()))
+                .setExpiration(Date.from(Instant.now().plusMillis(REFRESH_TOKEN_EXPIRATION)))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    // ✅ 토큰에서 사용자명 추출
     public String extractUsername(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
@@ -37,7 +50,7 @@ public class JwtUtil {
                 .getSubject();
     }
 
-    // ✅ JWT에서 roles를 List<String>으로 변환 후 Set<String>으로 변환
+    // ✅ JWT에서 roles를 Set<String>으로 변환
     public Set<String> extractRoles(String token) {
         Claims claims = Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
@@ -46,13 +59,21 @@ public class JwtUtil {
                 .getBody();
 
         Object rolesObject = claims.get("roles");
-        if (rolesObject instanceof List<?>) {
-            List<?> rolesList = (List<?>) rolesObject;
-            return rolesList.stream()
-                    .filter(String.class::isInstance) // 문자열인지 확인
-                    .map(String.class::cast) // 문자열로 변환
-                    .collect(Collectors.toSet()); // ✅ Set<String>으로 변환
+        if (rolesObject instanceof Collection<?>) {
+            return ((Collection<?>) rolesObject).stream()
+                    .map(Object::toString)
+                    .collect(Collectors.toSet());
         }
         return new HashSet<>();
+    }
+
+    // ✅ 토큰 유효성 검증
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parseClaimsJws(token);
+            return true;
+        } catch (JwtException e) {
+            return false;
+        }
     }
 }

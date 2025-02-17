@@ -15,5 +15,6 @@ public class User {
     private String username;
     private String password;
     private String email;
-    private Set<String> roles; // 사용자 역할 추가
+    private Set<String> roles;
+    private String refreshToken;  // 🔹 Refresh Token 추가
 }

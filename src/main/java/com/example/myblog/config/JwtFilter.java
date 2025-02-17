@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -19,8 +20,9 @@ import java.util.stream.Collectors;
 
 public class JwtFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
-    private final UserDetailsService userDetailsService;
+    private final UserDetailsService userDetailsService;  // ✅ 추가
 
+    // ✅ JwtFilter 생성자에서 userDetailsService 추가
     public JwtFilter(JwtUtil jwtUtil, UserDetailsService userDetailsService) {
         this.jwtUtil = jwtUtil;
         this.userDetailsService = userDetailsService;
@@ -40,23 +42,28 @@ public class JwtFilter extends OncePerRequestFilter {
 
         try {
             String username = jwtUtil.extractUsername(token);
-            Set<String> roles = jwtUtil.extractRoles(token); // ✅ JWT에서 역할 정보 추출
+            Set<String> roles = jwtUtil.extractRoles(token);
 
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                 List<GrantedAuthority> authorities = roles.stream()
                         .map(SimpleGrantedAuthority::new)
                         .collect(Collectors.toList());
 
                 UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(username, null, authorities);
+                        new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }
         } catch (ExpiredJwtException e) {
-            System.out.println("JWT 만료: " + e.getMessage());
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("JWT 만료: 새로운 액세스 토큰이 필요합니다.");
+            return;
         } catch (Exception e) {
-            System.out.println("JWT 검증 실패: " + e.getMessage());
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.getWriter().write("JWT 검증 실패: " + e.getMessage());
+            return;
         }
 
         chain.doFilter(request, response);
