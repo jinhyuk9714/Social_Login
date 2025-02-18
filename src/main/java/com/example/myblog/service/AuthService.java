@@ -4,8 +4,10 @@ import com.example.myblog.dto.LoginRequest;
 import com.example.myblog.dto.SignupRequest;
 import com.example.myblog.dto.TokenResponse;
 import com.example.myblog.entity.User;
+import com.example.myblog.repository.RefreshTokenRepository;
 import com.example.myblog.repository.UserRepository;
 import com.example.myblog.config.JwtUtil;
+import jakarta.transaction.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,12 +19,14 @@ import java.util.HashSet;
 @Service
 public class AuthService {
     private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
     @Autowired
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+    public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
         this.userRepository = userRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
     }
@@ -81,5 +85,13 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
         return jwtUtil.generateAccessToken(user.getUsername(), user.getRoles());
+    }
+
+    @Transactional
+    public void logout(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        refreshTokenRepository.deleteByUser(user);
     }
 }

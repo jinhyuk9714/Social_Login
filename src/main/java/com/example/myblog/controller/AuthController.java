@@ -5,6 +5,7 @@ import com.example.myblog.dto.SignupRequest;
 import com.example.myblog.dto.TokenResponse;
 import com.example.myblog.service.AuthService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -37,5 +38,10 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("accessToken", newAccessToken));
     }
 
-
+    @PostMapping("/logout")
+    public ResponseEntity<String> logout(Authentication authentication) {
+        String username = authentication.getName();
+        authService.logout(username);
+        return ResponseEntity.ok("로그아웃 성공");
+    }
 }
