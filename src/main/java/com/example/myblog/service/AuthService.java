@@ -70,13 +70,15 @@ public class AuthService {
         String accessToken = jwtUtil.generateAccessToken(user.getUsername(), user.getRoles());
         String refreshToken = jwtUtil.generateRefreshToken(user.getUsername());
 
-        // Redis에 리프레시 토큰 저장
+        // 🔥 기존 토큰 삭제 후 새로운 리프레시 토큰 저장
         ValueOperations<String, String> ops = redisTemplate.opsForValue();
         String redisKey = "refresh_token:" + user.getUsername();
+        redisTemplate.delete(redisKey);  // ✅ 기존 토큰 삭제
         ops.set(redisKey, refreshToken, Duration.ofMillis(jwtUtil.getRefreshTokenExpiration()));
 
         return new TokenResponse(accessToken, refreshToken);
     }
+
 
     /**
      * 리프레시 토큰으로 새로운 액세스 토큰 발급

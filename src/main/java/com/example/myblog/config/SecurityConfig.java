@@ -36,7 +36,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(10); // 🔥 해시 강도 설정 (기본값은 10)
     }
 
     @Bean

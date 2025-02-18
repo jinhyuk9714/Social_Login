@@ -1,6 +1,7 @@
 package com.example.myblog.config;
 
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -58,11 +59,13 @@ public class JwtFilter extends OncePerRequestFilter {
             }
         } catch (ExpiredJwtException e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("JWT 만료: 새로운 액세스 토큰이 필요합니다.");
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"JWT 만료: 새로운 액세스 토큰이 필요합니다.\"}");
             return;
-        } catch (Exception e) {
+        } catch (JwtException e) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.getWriter().write("JWT 검증 실패: " + e.getMessage());
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"JWT 검증 실패: " + e.getMessage() + "\"}");
             return;
         }
 

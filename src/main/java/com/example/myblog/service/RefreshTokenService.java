@@ -16,12 +16,11 @@ public class RefreshTokenService {
         this.refreshTokenRepository = refreshTokenRepository;
     }
 
-    public RefreshToken createRefreshToken(String userId) { // ✅ userId 사용
+    public RefreshToken createRefreshToken(String userId) {
         RefreshToken refreshToken = new RefreshToken();
-        refreshToken.setId(UUID.randomUUID().toString()); // ✅ MongoDB에서 ID는 String
         refreshToken.setToken(UUID.randomUUID().toString());
-        refreshToken.setExpiryDate(Instant.now().plusSeconds(3600)); // ✅ 1시간 후 만료
-        refreshToken.setUserId(userId); // ✅ userId 저장
+        refreshToken.setExpiryDate(Instant.now().plusSeconds(3600)); // 1시간 후 만료
+        refreshToken.setUserId(userId);
 
         return refreshTokenRepository.save(refreshToken);
     }

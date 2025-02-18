@@ -16,7 +16,8 @@ public class JwtUtil {
     private final long REFRESH_TOKEN_EXPIRATION = 7 * 24 * 60 * 60 * 1000; // 7일
 
     private Key getSigningKey() {
-        return Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
+        byte[] keyBytes = Base64.getDecoder().decode(SECRET_KEY); // Base64 인코딩된 키 사용
+        return Keys.hmacShaKeyFor(keyBytes);
     }
 
     // ✅ Access Token 생성
