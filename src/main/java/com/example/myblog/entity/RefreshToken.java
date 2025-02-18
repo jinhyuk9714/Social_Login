@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.data.mongodb.core.mapping.DBRef;
+import java.time.Instant;
 
 @Getter
 @Setter
@@ -12,10 +12,11 @@ import org.springframework.data.mongodb.core.mapping.DBRef;
 public class RefreshToken {
 
     @Id
-    private String id; // ✅ MongoDB에서는 ID를 String 타입으로 설정
+    private String id; // ✅ MongoDB에서는 String 타입 ID 사용
 
     private String token;
 
-    @DBRef // ✅ MongoDB에서 관계형 데이터를 참조할 때 사용
-    private User user;
+    private Instant expiryDate; // ✅ 만료 시간 필드 추가
+
+    private String userId; // ✅ `@DBRef` 제거하고, User의 ID만 저장
 }

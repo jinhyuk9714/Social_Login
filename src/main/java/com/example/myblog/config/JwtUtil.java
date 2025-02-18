@@ -76,4 +76,12 @@ public class JwtUtil {
             return false;
         }
     }
+
+    /**
+     * 리프레시 토큰의 유효 시간(밀리초) 반환
+     */
+    public long getRefreshTokenExpiration() { // ✅ 메서드 이름 일관되게 변경
+        return REFRESH_TOKEN_EXPIRATION;
+    }
+
 }

@@ -4,31 +4,32 @@ import com.example.myblog.dto.LoginRequest;
 import com.example.myblog.dto.SignupRequest;
 import com.example.myblog.dto.TokenResponse;
 import com.example.myblog.entity.User;
-import com.example.myblog.repository.RefreshTokenRepository;
-import com.example.myblog.repository.UserRepository;
 import com.example.myblog.config.JwtUtil;
-import jakarta.transaction.Transactional;
+import com.example.myblog.repository.UserRepository;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.Duration;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
-import java.util.HashSet;
 
 @Service
 public class AuthService {
     private final UserRepository userRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final StringRedisTemplate redisTemplate;
 
     @Autowired
-    public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil, StringRedisTemplate redisTemplate) {
         this.userRepository = userRepository;
-        this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.redisTemplate = redisTemplate;
     }
 
     /**
@@ -69,6 +70,11 @@ public class AuthService {
         String accessToken = jwtUtil.generateAccessToken(user.getUsername(), user.getRoles());
         String refreshToken = jwtUtil.generateRefreshToken(user.getUsername());
 
+        // Redis에 리프레시 토큰 저장
+        ValueOperations<String, String> ops = redisTemplate.opsForValue();
+        String redisKey = "refresh_token:" + user.getUsername();
+        ops.set(redisKey, refreshToken, Duration.ofMillis(jwtUtil.getRefreshTokenExpiration()));
+
         return new TokenResponse(accessToken, refreshToken);
     }
 
@@ -84,14 +90,26 @@ public class AuthService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
+        // Redis에서 저장된 리프레시 토큰 가져오기
+        ValueOperations<String, String> ops = redisTemplate.opsForValue();
+        String redisKey = "refresh_token:" + user.getUsername();
+        String storedToken = ops.get(redisKey);
+
+        if (storedToken == null || !storedToken.equals(refreshToken)) {
+            throw new RuntimeException("리프레시 토큰이 존재하지 않거나 만료되었습니다.");
+        }
+
         return jwtUtil.generateAccessToken(user.getUsername(), user.getRoles());
     }
 
-    @Transactional
+    /**
+     * 로그아웃 메서드 (Redis에서 리프레시 토큰 삭제)
+     */
     public void logout(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
-        refreshTokenRepository.deleteByUser(user);
+        String redisKey = "refresh_token:" + user.getUsername();
+        redisTemplate.delete(redisKey); // ✅ Redis에서 토큰 삭제
     }
 }
