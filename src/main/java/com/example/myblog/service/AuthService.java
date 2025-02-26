@@ -8,6 +8,8 @@ import com.example.myblog.config.JwtUtil;
 import com.example.myblog.repository.UserRepository;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +18,11 @@ import java.time.Duration;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 @Service
 public class AuthService {
@@ -23,6 +30,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final StringRedisTemplate redisTemplate;
+    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
     @Autowired
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil, StringRedisTemplate redisTemplate) {
@@ -79,6 +87,18 @@ public class AuthService {
         return new TokenResponse(accessToken, refreshToken);
     }
 
+    /**
+     * ✅ 소셜 로그인 후 JWT 토큰 발급 및 Redis에 Refresh Token 저장
+     */
+    public void processOAuthLogin(User user) {
+        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getRoles());
+        String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
+
+        // 🔥 Redis에 Refresh Token 저장 (소셜 로그인 사용자는 이메일 기준)
+        String redisKey = "refresh_token:" + user.getEmail();
+        redisTemplate.opsForValue().set(redisKey, refreshToken, jwtUtil.getRefreshTokenExpiration(), TimeUnit.MILLISECONDS);
+    }
+
 
     /**
      * 리프레시 토큰으로 새로운 액세스 토큰 발급
@@ -107,11 +127,33 @@ public class AuthService {
     /**
      * 로그아웃 메서드 (Redis에서 리프레시 토큰 삭제)
      */
-    public void logout(String username) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+    public void logout(String identifier) {
+        logger.info("🔍 로그아웃 요청 - identifier: {}", identifier);
 
-        String redisKey = "refresh_token:" + user.getUsername();
-        redisTemplate.delete(redisKey); // ✅ Redis에서 토큰 삭제
+        // 일반 로그인: username으로 찾고, 없으면 소셜 로그인(email)으로 찾기
+        User user = userRepository.findByUsername(identifier)
+                .orElseGet(() -> userRepository.findByEmail(identifier)
+                        .orElseThrow(() -> new RuntimeException("❌ 로그아웃 실패 - 사용자를 찾을 수 없습니다. identifier: " + identifier)));
+
+        logger.info("✅ 로그아웃 성공 - username: {}", user.getUsername());
+
+        // 🔥 Redis Key 생성: 일반 로그인은 username 기반, 소셜 로그인은 email 기반
+        String redisKey;
+        if (user.getOauthProvider() != null) { // 소셜 로그인 사용자인 경우
+            redisKey = "refresh_token:" + user.getEmail();
+        } else { // 일반 로그인 사용자
+            redisKey = "refresh_token:" + user.getUsername();
+        }
+
+        // 🔥 Redis에서 Refresh Token 삭제
+        Boolean deleted = redisTemplate.delete(redisKey);
+
+        if (Boolean.TRUE.equals(deleted)) {
+            logger.info("✅ 로그아웃 성공 - Refresh Token 삭제됨: {}", redisKey);
+        } else {
+            logger.warn("⚠️ 로그아웃 실패 - Redis에서 삭제되지 않음: {}", redisKey);
+        }
     }
+
+
 }
