@@ -121,10 +121,15 @@ public class AuthController {
                 return ResponseEntity.status(401).body("❌ 유효하지 않은 토큰입니다.");
             }
 
-            String email = jwtUtil.extractUsername(token);
+            String identifier = jwtUtil.extractUsername(token);
             Set<String> roles = jwtUtil.extractRoles(token);
 
-            Optional<User> user = userRepository.findByEmail(email);
+            // ✅ 일반 로그인은 username으로 찾고, 소셜 로그인은 email로 찾음
+            Optional<User> user = userRepository.findByUsername(identifier);
+            if (user.isEmpty()) {
+                user = userRepository.findByEmail(identifier);  // 🔥 email로도 재확인
+            }
+
             if (user.isEmpty()) {
                 return ResponseEntity.status(404).body("사용자를 찾을 수 없습니다.");
             }
@@ -134,4 +139,5 @@ public class AuthController {
             return ResponseEntity.status(401).body("Invalid Token");
         }
     }
+
 }
