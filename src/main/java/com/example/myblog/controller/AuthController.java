@@ -25,6 +25,14 @@ public class AuthController {
     private final OAuth2UserService oAuth2UserService;
     private final UserRepository userRepository;
 
+    /**
+     * ✅ AuthController 생성자
+     *
+     * @param authService       일반 로그인 & 회원가입 서비스
+     * @param jwtUtil           JWT 토큰 관련 유틸리티
+     * @param oAuth2UserService OAuth2 사용자 서비스 (구글 로그인 등)
+     * @param userRepository    사용자 조회를 위한 JPA 레포지토리
+     */
     public AuthController(AuthService authService, JwtUtil jwtUtil, OAuth2UserService oAuth2UserService, UserRepository userRepository) {
         this.authService = authService;
         this.jwtUtil = jwtUtil;
@@ -32,17 +40,35 @@ public class AuthController {
         this.userRepository = userRepository;
     }
 
+    /**
+     * ✅ 회원가입 엔드포인트
+     *
+     * @param signupRequest 회원가입 요청 정보 (JSON Body)
+     * @return 성공 메시지 응답
+     */
     @PostMapping("/signup")
     public ResponseEntity<String> signup(@RequestBody SignupRequest signupRequest) {
         return ResponseEntity.ok(authService.signup(signupRequest));
     }
 
+    /**
+     * ✅ 일반 로그인 엔드포인트 (JWT 발급)
+     *
+     * @param request 로그인 요청 정보 (JSON Body)
+     * @return JWT Access & Refresh Token
+     */
     @PostMapping("/login")
     public ResponseEntity<TokenResponse> login(@RequestBody LoginRequest request) {
         TokenResponse tokenResponse = authService.login(request);
         return ResponseEntity.ok(tokenResponse);
     }
 
+    /**
+     * ✅ JWT 리프레시 토큰을 사용하여 새로운 Access Token 발급
+     *
+     * @param request JSON Body - { "refreshToken": "..." }
+     * @return 새로운 Access Token
+     */
     @PostMapping("/refresh")
     public ResponseEntity<Map<String, String>> refresh(@RequestBody Map<String, String> request) {
         String newAccessToken = authService.refreshToken(request.get("refreshToken"));
@@ -51,6 +77,11 @@ public class AuthController {
 
     /**
      * ✅ 로그아웃 처리 (JWT 기반)
+     *
+     * - Redis에서 Refresh Token을 삭제하여 로그아웃 처리
+     *
+     * @param token HTTP 헤더에서 받은 Authorization 토큰
+     * @return 로그아웃 성공 여부 메시지
      */
     @PostMapping("/logout")
     public ResponseEntity<String> logout(@RequestHeader("Authorization") String token) {
@@ -77,7 +108,12 @@ public class AuthController {
     }
 
     /**
-     * ✅ Google Access Token을 받아 자체 JWT 발급
+     * ✅ Google OAuth 로그인 성공 후 JWT 발급
+     *
+     * - 클라이언트에서 Google Access Token을 받아 서버에 전달하면, 자체 JWT를 발급하여 반환함
+     *
+     * @param authorizationHeader HTTP Authorization 헤더 (Bearer {Google Access Token})
+     * @return JWT Access & Refresh Token
      */
     @GetMapping("/oauth-success")
     public ResponseEntity<?> oauthSuccess(@RequestHeader("Authorization") String authorizationHeader) {
@@ -109,7 +145,10 @@ public class AuthController {
     }
 
     /**
-     * ✅ 사용자 정보 조회
+     * ✅ 현재 로그인한 사용자 정보 조회
+     *
+     * @param token HTTP Authorization 헤더 (Bearer {JWT Access Token})
+     * @return 사용자 정보 (JSON)
      */
     @GetMapping("/user")
     public ResponseEntity<?> getUserInfo(@RequestHeader("Authorization") String token) {
@@ -139,5 +178,4 @@ public class AuthController {
             return ResponseEntity.status(401).body("Invalid Token");
         }
     }
-
 }

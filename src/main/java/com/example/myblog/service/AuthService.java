@@ -7,7 +7,6 @@ import com.example.myblog.entity.User;
 import com.example.myblog.config.JwtUtil;
 import com.example.myblog.repository.UserRepository;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -28,6 +27,10 @@ public class AuthService {
     private final StringRedisTemplate redisTemplate;
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
+    /**
+     * ✅ 생성자 주입
+     * - Spring이 의존성을 자동으로 주입하도록 설정
+     */
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil, StringRedisTemplate redisTemplate) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -37,20 +40,25 @@ public class AuthService {
 
     /**
      * ✅ 회원가입 메서드
+     * - username이 이미 존재하는지 확인
+     * - 비밀번호를 암호화하여 저장
+     * - 기본 역할(ROLE_USER) 추가
      */
     public String signup(SignupRequest signupRequest) {
         if (userRepository.existsByUsername(signupRequest.getUsername())) {
             throw new RuntimeException("이미 존재하는 사용자명입니다.");
         }
 
+        // 🔥 새로운 사용자 객체 생성
         User user = new User();
         user.setUsername(signupRequest.getUsername());
-        user.setPassword(passwordEncoder.encode(signupRequest.getPassword())); // 비밀번호 암호화
+        user.setPassword(passwordEncoder.encode(signupRequest.getPassword())); // ✅ 비밀번호 암호화 저장
         user.setEmail(signupRequest.getEmail());
 
+        // 🔥 역할(ROLE) 설정
         Set<String> roles = signupRequest.getRoles() != null ? new HashSet<>(signupRequest.getRoles()) : new HashSet<>();
         if (roles.isEmpty()) {
-            roles.add("ROLE_USER");
+            roles.add("ROLE_USER"); // 기본 역할 부여
         }
         user.setRoles(roles);
 
@@ -60,15 +68,21 @@ public class AuthService {
 
     /**
      * ✅ 로그인 메서드
+     * - username 기반으로 사용자 조회
+     * - 비밀번호 검증
+     * - Access Token 및 Refresh Token 생성 후 반환
      */
     public TokenResponse login(LoginRequest loginRequest) {
+        // 🔍 사용자 찾기
         User user = userRepository.findByUsername(loginRequest.getUsername())
                 .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
+        // 🔍 비밀번호 검증
         if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
             throw new RuntimeException("비밀번호가 일치하지 않습니다.");
         }
 
+        // 🔥 JWT 토큰 생성 (Access & Refresh)
         String accessToken = jwtUtil.generateAccessToken(user.getUsername(), user.getRoles());
         String refreshToken = jwtUtil.generateRefreshToken(user.getUsername());
 
@@ -81,7 +95,9 @@ public class AuthService {
     }
 
     /**
-     * ✅ 리프레시 토큰으로 새로운 액세스 토큰 발급
+     * ✅ 리프레시 토큰을 이용한 새로운 액세스 토큰 발급
+     * - Redis에 저장된 Refresh Token과 비교하여 유효성 검증
+     * - Refresh Token이 일치하면 새로운 Access Token 발급
      */
     public String refreshToken(String refreshToken) {
         String username = jwtUtil.extractUsername(refreshToken);
@@ -106,20 +122,21 @@ public class AuthService {
         return jwtUtil.generateAccessToken(user.getUsername(), user.getRoles());
     }
 
-
     /**
-     * ✅ 로그아웃 메서드 (Redis에서 리프레시 토큰 삭제)
+     * ✅ 로그아웃 메서드 (Redis에서 Refresh Token 삭제)
+     * - 사용자를 찾아 Redis에서 해당 Refresh Token을 제거
      */
     public void logout(String identifier) {
         logger.info("🔍 로그아웃 요청 - identifier: {}", identifier);
 
+        // 🔍 사용자가 username인지 email인지 확인 후 조회
         User user = userRepository.findByUsername(identifier)
                 .orElseGet(() -> userRepository.findByEmail(identifier)
                         .orElseThrow(() -> new RuntimeException("❌ 로그아웃 실패 - 사용자를 찾을 수 없습니다.")));
 
         logger.info("✅ 로그아웃 성공 - username: {}", user.getUsername());
 
-        // 🔥 Redis Key 생성: 일반 로그인은 username 기반, 소셜 로그인은 email 기반
+        // 🔥 Redis Key 생성 (일반 로그인: username, 소셜 로그인: email)
         String redisKey = user.getOauthProvider() != null ? "refresh_token:" + user.getEmail() : "refresh_token:" + user.getUsername();
 
         // 🔥 Redis에서 Refresh Token 삭제
