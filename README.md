@@ -1,17 +1,17 @@
 # 🔐 Social Auth & JWT Authentication Backup
 
-이 저장소는 **Spring Security 기반의 인증 시스템**을 백업하는 저장소입니다.  
-원본 프로젝트는 유지하면서, **소셜 로그인, JWT 인증, 리프레시 토큰, Redis 세션 관리 기능**을 따로 관리합니다.
+이 저장소는 **Spring Security 기반의 인증 시스템**을 백업하는 저장소.  
+원본 프로젝트는 유지하면서, **소셜 로그인, JWT 인증, 리프레시 토큰, Redis 세션 관리 기능**을 따로 관리.
 
 > 🚀 **주의:** 이 저장소는 **블로그 기능을 포함하지 않습니다.**  
-> 원본 프로젝트는 [여기](https://github.com/your-username/original-repo)에서 확인하세요.
+> 원본 프로젝트 : [여기](https://github.com/jinhyuk9714/MyBlog)
 
 ---
 
 ## 📌 프로젝트 개요
 
-이 저장소는 **Spring Security + OAuth2 + JWT + Redis 기반 인증 시스템**을 보관합니다.  
-소셜 로그인과 JWT 기반 인증이 필요한 프로젝트에서 활용할 수 있습니다.
+이 저장소는 **Spring Security + OAuth2 + JWT + Redis 기반 인증 시스템**을 보관.  
+소셜 로그인과 JWT 기반 인증이 필요한 프로젝트에서 활용.
 
 ### ✅ 포함된 주요 기능
 - **소셜 로그인 (OAuth2)**
